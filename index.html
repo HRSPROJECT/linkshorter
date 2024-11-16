@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase URL Shortener</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        
+        .container {
+            text-align: center;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            width: 400px;
+        }
+        
+        input {
+            width: 90%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        p {
+            margin-top: 15px;
+        }
+        
+        a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Firebase URL Shortener</h1>
+        <div id="auth-section">
+            <button id="login-btn">Login with Google</button>
+            <button id="logout-btn" style="display:none;">Logout</button>
+        </div>
+        <input type="url" id="long-url" placeholder="Enter a long URL" required>
+        <button id="shorten-btn">Shorten URL</button>
+        <p id="shortened-url"></p>
+    </div>
+
+    <script type="module">
+        // Firebase Configuration and Initialization
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-app.js";
+        import { getAuth, signInWithPopup, signOut, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.17.1/firebase-firestore.js";
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCNyZAmw3D8aCqNOHOw0f3YKtZWNatauN8",
+    authDomain: "hello-4105a.firebaseapp.com",
+    databaseURL: "https://hello-4105a-default-rtdb.firebaseio.com",
+    projectId: "hello-4105a",
+    storageBucket: "hello-4105a.appspot.com",
+    messagingSenderId: "978669199403",
+    appId: "1:978669199403:web:6c20e3dbaf815bba890a6e",
+    measurementId: "G-2TGPP3E88X",
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+
+        // Select DOM elements
+        const loginBtn = document.getElementById('login-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const shortenBtn = document.getElementById('shorten-btn');
+        const longUrlInput = document.getElementById('long-url');
+        const shortenedUrlDisplay = document.getElementById('shortened-url');
+
+        let currentUser = null;
+
+        // Login with Google
+        loginBtn.onclick = async () => {
+            try {
+                const result = await signInWithPopup(auth, provider);
+                currentUser = result.user;
+                loginBtn.style.display = 'none';
+                logoutBtn.style.display = 'block';
+            } catch (error) {
+                console.error("Login error:", error);
+            }
+        };
+
+        // Logout
+        logoutBtn.onclick = async () => {
+            await signOut(auth);
+            currentUser = null;
+            loginBtn.style.display = 'block';
+            logoutBtn.style.display = 'none';
+        };
+
+        // Generate a random short ID
+        function generateShortId() {
+            return Math.random().toString(36).substring(2, 8);
+        }
+
+        // Shorten URL
+        shortenBtn.onclick = async () => {
+            const longUrl = longUrlInput.value.trim();
+            if (!longUrl) {
+                alert("Please enter a valid URL.");
+                return;
+            }
+
+            const shortId = generateShortId();
+            const urlDocRef = doc(db, "urls", shortId);
+
+            try {
+                await setDoc(urlDocRef, {
+                    longUrl: longUrl,
+                    createdBy: currentUser ? currentUser.uid : "anonymous",
+                    createdAt: new Date()
+                });
+
+                shortenedUrlDisplay.innerHTML = `
+                    Shortened URL: <a href="/${shortId}" target="_blank">${window.location.origin}/${shortId}</a>
+                `;
+                longUrlInput.value = '';
+            } catch (error) {
+                console.error("Error shortening URL:", error);
+                alert("Failed to shorten the URL. Please try again.");
+            }
+        };
+
+        // Handle redirects using Firebase Hosting rewrite rules
+        async function handleRedirect() {
+            const path = window.location.pathname.substring(1);
+            if (path) {
+                const docRef = doc(db, "urls", path);
+                const docSnap = await getDoc(docRef);
+
+                if (docSnap.exists()) {
+                    const { longUrl } = docSnap.data();
+                    window.location.replace(longUrl);
+                } else {
+                    alert("Invalid or expired URL.");
+                }
+            }
+        }
+
+        // Check if we are trying to access a shortened URL
+        handleRedirect();
+    </script>
+</body>
+
+</html>
